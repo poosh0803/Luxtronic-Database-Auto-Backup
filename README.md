@@ -8,7 +8,7 @@ listing each database by name with its last backup, size and health.
 
 ```bash
 npm install
-cp .env.example .env      # then fill in DB_DEFAULT_PASSWORD and DB_PCTOOLS_PASSWORD
+cp .env.example .env      # then fill in DB_DEFAULT_PASSWORD (one login shared by every server)
 npm run check             # verifies the dump tool, schedule, folder and every DB connection
 pm2 start ecosystem.config.cjs
 pm2 save
@@ -24,6 +24,15 @@ in order (`PG_DUMP_MODE=auto`):
 
 1. a local `pg_dump` on `PATH` (or `PG_DUMP_PATH`), else
 2. a throwaway `postgres:17` Docker container that runs `pg_dump` (needs the Docker engine running).
+
+On the LAN server (Ubuntu 24.04, whose stock `pg_dump` is version 16) the 17 client is installed from the
+official PostgreSQL apt repo - client tools only, no server:
+
+```bash
+apt-get install -y postgresql-common
+/usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
+apt-get install -y postgresql-client-17
+```
 
 If neither exists the status page shows a red banner and backups fail with a clear message.
 
