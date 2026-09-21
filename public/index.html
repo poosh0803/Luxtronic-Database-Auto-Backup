@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Luxtronic Database Backup</title>
+  <link rel="icon" href="images/logo.png">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div class="header">
+    <div class="logo-container">
+      <img src="images/logo.png" alt="Luxtronic" class="logo-img">
+      <span class="brand-name">Luxtronic</span>
+      <span class="tagline">Database Backup</span>
+    </div>
+    <div class="dark-mode-toggle" id="darkModeToggle" title="Toggle dark mode">
+      <i class="fas fa-moon" id="themeIcon"></i>
+    </div>
+  </div>
+
+  <div class="nav-bar">
+    <a href="/" class="nav-item active"><i class="fas fa-gauge-high"></i> Dashboard</a>
+    <button type="button" class="nav-item nav-item-accent" id="backupAllBtn">
+      <i class="fas fa-database"></i> Back up all now
+    </button>
+  </div>
+
+  <main>
+    <h1>Database Backups</h1>
+    <p class="subtitle" id="pageSubtitle">Loading&hellip;</p>
+
+    <div id="alerts"></div>
+
+    <div class="stats-grid" id="stats"></div>
+
+    <div id="targets"></div>
+  </main>
+
+  <div class="toast" id="toast"></div>
+
+  <script src="js/app.js"></script>
+</body>
+</html>

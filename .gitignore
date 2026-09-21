@@ -1,0 +1,11 @@
+node_modules/
+.env
+logs/
+
+# Database dumps hold real customer data - never commit them (see LUXTRONIC-PRIVACY-DATA-GUIDELINES.md).
+backups/
+*.dump
+*.part
+
+# Runtime status history
+data/

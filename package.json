@@ -1,0 +1,19 @@
+{
+  "name": "luxtronic-database-auto-backup",
+  "version": "1.0.0",
+  "description": "Scheduled pg_dump backups of the Luxtronic LAN Postgres databases, with a small status page",
+  "main": "app.js",
+  "type": "module",
+  "scripts": {
+    "start": "node app.js",
+    "dev": "node --watch app.js",
+    "check": "node scripts/check.js"
+  },
+  "license": "ISC",
+  "dependencies": {
+    "cron-parser": "^4.9.0",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "pg": "^8.13.1"
+  }
+}
