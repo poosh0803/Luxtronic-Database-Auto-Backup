@@ -68,8 +68,10 @@ export function loadConfig(env = process.env) {
     dataDir: path.resolve(env.DATA_DIR || './data'),
     cron: env.BACKUP_CRON || '0 2 * * *',
     timezone: env.BACKUP_TIMEZONE || 'Australia/Sydney',
+    // Defaults for the retention settings - the web page can override both (data/settings.json).
     retentionDays: toInt(env.BACKUP_RETENTION_DAYS, 14),
-    // Never prune below this many backups per database, however old they are,
+    maxKeep: toInt(env.BACKUP_MAX_KEEP, 0),
+    // Age-based pruning never goes below this many backups per database, however old,
     // so a long outage can't age out the last good copies.
     keepMin: toInt(env.BACKUP_KEEP_MIN, 3),
     staleHours: toInt(env.BACKUP_STALE_HOURS, 36),

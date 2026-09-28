@@ -36,6 +36,28 @@
 
     <div class="stats-grid" id="stats"></div>
 
+    <details class="panel settings-panel" id="settingsPanel">
+      <summary><h2><i class="fas fa-sliders"></i> Retention settings</h2></summary>
+      <form id="settingsForm" class="settings-form">
+        <label>
+          <span>Max backups kept per database</span>
+          <input type="number" name="maxKeep" min="0" max="1000" step="1" required>
+          <small>Older ones are deleted once a database has more than this. 0 = no limit.
+            A single database can have its own limit - open its <strong>History</strong>.</small>
+        </label>
+        <label>
+          <span>Delete backups older than (days)</span>
+          <input type="number" name="retentionDays" min="0" max="3650" step="1" required>
+          <small>0 = never delete by age. The newest <span id="keepMinNote">3</span> of each database are always kept by this rule.</small>
+        </label>
+        <div class="settings-actions">
+          <button type="submit" class="btn btn-primary"><i class="fas fa-floppy-disk"></i> Save</button>
+          <button type="button" class="btn" id="settingsReset">Cancel</button>
+          <small>Lowering a limit deletes the extra backups straight away - you'll be asked first.</small>
+        </div>
+      </form>
+    </details>
+
     <div id="targets"></div>
   </main>
 

@@ -47,10 +47,23 @@ app.post('/api/backup', async (req, res) => {
   }
 });
 
+// Retention settings. Body: { maxKeep?, retentionDays? } or { target, database, maxKeep: n | null }.
+// Saving prunes to the new limits immediately; ?dryRun=1 only reports how many backups would be deleted.
+app.put('/api/settings', async (req, res) => {
+  try {
+    const result = await service.updateSettings(req.body, { dryRun: req.query.dryRun === '1' });
+    if (result.error) return res.status(400).json(result);
+    res.json(result);
+  } catch (err) {
+    console.error('[api] settings failed:', err.message);
+    res.status(500).json({ error: 'Could not save settings' });
+  }
+});
+
 const server = app.listen(cfg.port, () => {
   const usable = cfg.targets.filter((t) => !t.configError).length;
   console.log(`Luxtronic Database Auto Backup on http://localhost:${cfg.port}`);
-  console.log(`Targets: ${usable}/${cfg.targets.length} configured | schedule "${cfg.cron}" (${cfg.timezone}) | keep ${cfg.retentionDays} days`);
+  console.log(`Targets: ${usable}/${cfg.targets.length} configured | schedule "${cfg.cron}" (${cfg.timezone})`);
   console.log(`Backup folder: ${cfg.backupDir}`);
   for (const t of cfg.targets) if (t.configError) console.warn(`Target "${t.name}" not usable: ${t.configError}`);
 });

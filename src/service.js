@@ -19,6 +19,7 @@ import {
   safeName,
   timestamp,
 } from './storage.js';
+import { applyChange, loadSettings, policyFor, saveSettings } from './settings.js';
 
 const DISCOVERY_TTL_MS = 60 * 1000;
 const jobKey = (targetId, database) => `${targetId}/${database}`;
@@ -26,6 +27,7 @@ const log = (msg) => console.log(msg);
 
 export async function createService(cfg) {
   const status = await loadStatus(cfg);
+  let settings = await loadSettings(cfg);
   const queue = [];
   const discovery = new Map(); // target id -> { at, databases, error }
   const inflight = new Map(); // target id -> pending discovery promise
@@ -100,7 +102,7 @@ export async function createService(cfg) {
       const { size } = await fs.stat(partPath);
       if (size === 0) throw new Error('pg_dump produced an empty file');
       await fs.rename(partPath, finalPath);
-      const pruned = await pruneBackups(cfg, dir);
+      const pruned = await pruneBackups(dir, policyFor(cfg, settings, job.targetId, job.database));
       record.lastResult = 'ok';
       log(`[backup] ${job.key} ok (${(size / 1048576).toFixed(1)} MB, ${Math.round((Date.now() - started) / 1000)}s${pruned ? `, pruned ${pruned}` : ''})`);
     } catch (err) {
@@ -140,6 +142,30 @@ export async function createService(cfg) {
     return { queued };
   }
 
+  // Changes retention settings and prunes every database to match straight away.
+  // With dryRun, nothing is saved or deleted - it only reports how many files would go.
+  async function updateSettings(change, { dryRun = false } = {}) {
+    const result = applyChange(cfg, settings, change || {});
+    if (result.error) return result;
+    const next = result.settings;
+
+    // A database with a dump in progress is left alone; its own prune runs when the dump finishes.
+    let deleted = 0;
+    for (const target of cfg.targets) {
+      for (const db of await backedUpDatabases(cfg, target.id)) {
+        if (current && current.targetId === target.id && safeName(current.database) === db) continue;
+        deleted += await pruneBackups(databaseDir(cfg, target.id, db), policyFor(cfg, next, target.id, db), { dryRun });
+      }
+    }
+    if (dryRun) return { settings: next, deleted };
+
+    await saveSettings(cfg, next);
+    settings = next;
+    log(`[settings] max ${next.maxKeep || 'unlimited'} per database, ${next.retentionDays || 'no'} day limit, ` +
+      `${Object.keys(next.perDatabase).length} override(s)${deleted ? ` - pruned ${deleted} backup(s)` : ''}`);
+    return { settings: next, deleted };
+  }
+
   // ---- schedule ----
 
   function scheduleNext() {
@@ -172,6 +198,7 @@ export async function createService(cfg) {
       const last = status.databases[key] || {};
       const latest = files[0];
       const ageHours = latest ? (Date.now() - latest.mtimeMs) / 3600000 : Infinity;
+      const policy = policyFor(cfg, settings, target.id, name);
 
       let state = 'ok';
       if (current && current.key === key) state = 'running';
@@ -187,6 +214,8 @@ export async function createService(cfg) {
         lastFile: latest ? latest.name : null,
         lastSizeBytes: latest ? latest.size : null,
         backupCount: files.length,
+        maxKeep: policy.maxKeep,
+        maxKeepOverridden: policy.overridden,
         totalBytes: files.reduce((sum, f) => sum + f.size, 0),
         lastAttemptAt: last.lastAttemptAt || null,
         lastError: last.lastResult === 'failed' ? last.lastError : null,
@@ -213,8 +242,7 @@ export async function createService(cfg) {
     return {
       serverTime: new Date().toISOString(),
       schedule: { cron: cfg.cron, timezone: cfg.timezone, nextRun: nextRun && nextRun.toISOString() },
-      retentionDays: cfg.retentionDays,
-      keepMin: cfg.keepMin,
+      settings: { maxKeep: settings.maxKeep, retentionDays: settings.retentionDays, keepMin: cfg.keepMin },
       staleHours: cfg.staleHours,
       backupDir: cfg.backupDir,
       runner,
@@ -234,5 +262,5 @@ export async function createService(cfg) {
   scheduleNext();
   for (const target of cfg.targets) if (!target.configError) refreshDiscovery(target);
 
-  return { getStatus, requestBackup, stop: () => clearTimeout(timer) };
+  return { getStatus, requestBackup, updateSettings, stop:() => clearTimeout(timer) };
 }

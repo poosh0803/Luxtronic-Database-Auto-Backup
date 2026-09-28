@@ -42,8 +42,9 @@ If neither exists the status page shows a red banner and backups fail with a cle
 |---|---|---|
 | `BACKUP_DIR` | `./backups` | Where dumps go. **Should be off the server the DBs live on** (NAS share, second disk). |
 | `BACKUP_CRON` / `BACKUP_TIMEZONE` | `0 2 * * *` / `Australia/Sydney` | Schedule. |
-| `BACKUP_RETENTION_DAYS` | `14` | Older backups are deleted... |
-| `BACKUP_KEEP_MIN` | `3` | ...but the newest N per database are always kept. |
+| `BACKUP_MAX_KEEP` | `0` | Default max backups kept per database (0 = no limit). Editable on the page. |
+| `BACKUP_RETENTION_DAYS` | `14` | Default age limit: older backups are deleted (0 = never)... Editable on the page. |
+| `BACKUP_KEEP_MIN` | `3` | ...but the age limit never removes the newest N per database. |
 | `BACKUP_STALE_HOURS` | `36` | Newest backup older than this shows "Stale". |
 | `DB_DEFAULT_HOST/USER/PASSWORD` | - | Shared by every target unless overridden. |
 | `DB_TARGETS` | - | Comma list of server names, one per Postgres instance (host:port). |
@@ -84,6 +85,16 @@ Dumps contain real customer data. They are git-ignored and their contents are ne
 (LAN-only trust, like the other apps - see `LUXTRONIC-PRIVACY-DATA-GUIDELINES.md`), and it can **download backups**, so
 anyone on the LAN can download the full customer data of every database. Every download is logged with the requester's
 IP in `logs/out.log` (`[download] ...`). Add authentication before this service is ever reachable from outside the LAN.
+
+## Retention settings (on the page)
+
+The **Retention settings** panel sets the max backups kept per database and the age limit for all databases.
+Any single database can have its own max: open its **History** and set "Max backups kept for this database"
+(blank = use the default). Saved values go to `data/settings.json` and override the `.env` defaults.
+
+Saving applies straight away: if a lower limit means existing backups must go, the page says how many and asks
+before deleting them. The newest backups are always the ones kept. API: `PUT /api/settings`
+(`{ maxKeep, retentionDays }` or `{ target, database, maxKeep: n | null }`; add `?dryRun=1` to preview).
 
 ## Downloading backups
 

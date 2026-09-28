@@ -115,6 +115,33 @@ body.dark-mode .history-box { background: #171717; }
 body.dark-mode .history-list li { border-top-color: #333; }
 body.dark-mode .history-head { color: #aaa; }
 
+/* ---------- retention settings ---------- */
+.settings-panel summary { cursor: pointer; list-style: none; }
+.settings-panel summary::-webkit-details-marker { display: none; }
+.settings-panel summary h2 { display: inline-flex; align-items: center; gap: 8px; margin: 0; }
+.settings-panel summary::after { content: '\f078'; font-family: 'Font Awesome 6 Free'; font-weight: 900; font-size: 12px; color: var(--muted); margin-left: 8px; }
+.settings-panel[open] summary::after { content: '\f077'; }
+.settings-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 18px; margin-top: 16px; }
+.settings-form label { display: flex; flex-direction: column; gap: 6px; font-size: 14px; font-weight: 600; }
+.settings-form small, .settings-actions small { font-weight: normal; color: var(--muted); font-size: 12px; }
+.settings-actions { grid-column: 1 / -1; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+
+input[type="number"] { border: 1px solid #ddd; border-radius: 4px; padding: 6px 8px; font-size: 14px; width: 140px; background: white; color: var(--text); }
+input[type="number"]:focus { outline: none; border-color: var(--brand); }
+.btn-primary { background: var(--brand); border-color: var(--brand); color: white; font-weight: bold; }
+.btn-primary:hover { background: var(--brand-dark); border-color: var(--brand-dark); }
+
+.limit-form { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 10px 12px; border-bottom: 1px solid var(--border); font-size: 13px; }
+.limit-form label { display: flex; align-items: center; gap: 8px; font-weight: 600; }
+.limit-form input { width: 130px; }
+
+body.dark-mode input[type="number"] { background: #2a2a2a; border-color: #444; color: #e6e6e6; }
+body.dark-mode input[type="number"]:focus { border-color: #f0b33e; }
+body.dark-mode .btn-primary { background: #f0b33e; border-color: #f0b33e; color: #1a1a1a; }
+body.dark-mode .btn-primary:hover { background: #d89b23; border-color: #d89b23; }
+body.dark-mode .settings-form small, body.dark-mode .settings-actions small { color: #aaa; }
+body.dark-mode .limit-form { border-bottom-color: #333; }
+
 .spin { animation: spin 1s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 

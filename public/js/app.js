@@ -83,7 +83,7 @@ function renderStats(data) {
     { label: 'Databases', value: dbs.length, cls: 'orange', sub: `on ${data.targets.length} server${data.targets.length === 1 ? '' : 's'}` },
     { label: 'Healthy', value: healthy, cls: 'green', sub: 'backed up recently' },
     { label: 'Need attention', value: attention, cls: attention ? 'red' : 'green', sub: 'failed, stale, never run or unreachable' },
-    { label: 'Backup storage', value: formatBytes(total), cls: '', sub: `keeping ${data.retentionDays} days` },
+    { label: 'Backup storage', value: formatBytes(total), cls: '', sub: retentionSummary(data.settings) },
     {
       label: 'Next scheduled run',
       value: data.schedule.nextRun ? formatDate(data.schedule.nextRun) : '-',
@@ -135,8 +135,64 @@ function historyRow(target, db) {
           </li>`).join('')}
       </ul>`;
   }
-  return `<tr class="history-row"><td colspan="6"><div class="history-box">${body}</div></td></tr>`;
+  const global = lastData ? lastData.settings.maxKeep : 0;
+  const limit = `
+    <form class="limit-form" data-target="${escapeHtml(target.id)}" data-database="${escapeHtml(db.name)}">
+      <label>Max backups kept for this database
+        <input type="number" name="maxKeep" min="0" max="1000" step="1"
+          value="${db.maxKeepOverridden ? db.maxKeep : ''}"
+          placeholder="${global ? `default (${global})` : 'default (no limit)'}">
+      </label>
+      <button type="submit" class="btn"><i class="fas fa-floppy-disk"></i> Save</button>
+      <span class="sub">Blank = use the default for all databases. 0 = no limit.</span>
+    </form>`;
+  return `<tr class="history-row"><td colspan="6"><div class="history-box">${limit}${body}</div></td></tr>`;
 }
+
+// ---------- retention settings ----------
+
+function retentionSummary(s) {
+  const parts = [];
+  parts.push(s.maxKeep ? `max ${s.maxKeep} backups per database` : 'no count limit');
+  parts.push(s.retentionDays ? `deleted after ${s.retentionDays} days (newest ${s.keepMin} always kept)` : 'no age limit');
+  return parts.join(', ');
+}
+
+// Fills the global form from the server, unless someone is editing it right now.
+function fillSettingsForm(s) {
+  const form = el('settingsForm');
+  if (form.contains(document.activeElement) || form.dataset.dirty) return;
+  form.maxKeep.value = s.maxKeep;
+  form.retentionDays.value = s.retentionDays;
+  el('keepMinNote').textContent = s.keepMin;
+}
+
+// Previews how many backups a change would delete, asks before deleting any, then saves.
+async function saveSettings(change) {
+  const send = (dryRun) => fetch(`/api/settings${dryRun ? '?dryRun=1' : ''}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(change),
+  }).then(async (res) => {
+    const body = await res.json();
+    if (!res.ok) throw new Error(body.error || `HTTP ${res.status}`);
+    return body;
+  });
+  try {
+    const preview = await send(true);
+    if (preview.deleted && !confirm(`This will permanently delete ${preview.deleted} existing backup file${preview.deleted === 1 ? '' : 's'} now to fit the new limit. Continue?`)) {
+      return false;
+    }
+    const result = await send(false);
+    toast(result.deleted ? `Saved - deleted ${result.deleted} old backup${result.deleted === 1 ? '' : 's'}` : 'Saved');
+    return true;
+  } catch (err) {
+    toast(`Could not save: ${err.message}`);
+    return false;
+  }
+}
+
+const parseCount = (value) => (value.trim() === '' ? null : Number(value));
 
 async function loadHistory(key) {
   const [targetId, ...rest] = key.split('/');
@@ -163,7 +219,7 @@ function databaseRow(target, db) {
       <td><span class="badge ${db.state}">${STATE_LABEL[db.state] || escapeHtml(db.state)}</span></td>
       <td>${last}</td>
       <td class="num">${escapeHtml(formatBytes(db.lastSizeBytes))}</td>
-      <td class="num">${db.backupCount}<div class="sub">${escapeHtml(formatBytes(db.totalBytes))} total</div></td>
+      <td class="num">${db.backupCount}${db.maxKeep ? ` / ${db.maxKeep}` : ''}<div class="sub">${escapeHtml(formatBytes(db.totalBytes))} total</div></td>
       <td class="num actions">
         ${latestFile
           ? `<a class="btn" href="${fileUrl(target.id, db.name, latestFile)}" download title="Download the newest backup"><i class="fas fa-download"></i> Latest</a>`
@@ -213,11 +269,14 @@ function render(data) {
   lastData = data;
   const busy = data.running ? `Backing up ${data.running.database}` + (data.queued ? ` (+${data.queued} queued)` : '') : 'Idle';
   el('pageSubtitle').textContent =
-    `${busy} · saving to ${data.backupDir} · keeping ${data.retentionDays} days (min ${data.keepMin} per database)`;
+    `${busy} · saving to ${data.backupDir} · ${retentionSummary(data.settings)}`;
+  fillSettingsForm(data.settings);
   el('backupAllBtn').disabled = false;
   renderAlerts(data);
   renderStats(data);
-  renderTargets(data);
+  // Don't redraw the tables under someone typing a per-database limit.
+  const focused = document.activeElement;
+  if (!(focused && focused.tagName === 'INPUT' && el('targets').contains(focused))) renderTargets(data);
 }
 
 // ---------- data ----------
@@ -255,6 +314,32 @@ document.addEventListener('DOMContentLoaded', () => {
   initDarkMode();
 
   el('backupAllBtn').addEventListener('click', () => requestBackup({}, 'all databases'));
+
+  const settingsForm = el('settingsForm');
+  settingsForm.addEventListener('input', () => { settingsForm.dataset.dirty = '1'; });
+  settingsForm.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const change = {
+      maxKeep: parseCount(settingsForm.maxKeep.value) ?? 0,
+      retentionDays: parseCount(settingsForm.retentionDays.value) ?? 0,
+    };
+    if (await saveSettings(change)) delete settingsForm.dataset.dirty;
+    load();
+  });
+  el('settingsReset').addEventListener('click', () => {
+    delete settingsForm.dataset.dirty;
+    if (lastData) fillSettingsForm(lastData.settings);
+  });
+
+  el('targets').addEventListener('submit', async (event) => {
+    const form = event.target.closest('form.limit-form');
+    if (!form) return;
+    event.preventDefault();
+    const { target, database } = form.dataset;
+    document.activeElement?.blur();
+    await saveSettings({ target, database, maxKeep: parseCount(form.maxKeep.value) });
+    load();
+  });
   el('targets').addEventListener('click', async (event) => {
     const toggle = event.target.closest('button[data-history]');
     if (toggle && !toggle.disabled) {

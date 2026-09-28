@@ -40,17 +40,22 @@ export async function listBackups(dir) {
   return files.sort((a, b) => b.mtimeMs - a.mtimeMs);
 }
 
-// Deletes backups older than retentionDays, but never the newest keepMin.
-export async function pruneBackups(cfg, dir) {
+// Applies a retention policy (see settings.js) to one database directory:
+//  - anything beyond the newest maxKeep is deleted (maxKeep 0 = no count limit)
+//  - anything older than retentionDays is deleted (0 = no age limit), except the
+//    newest keepMin, so a long outage can't age out the last good copies.
+// With dryRun, only counts what would be deleted.
+export async function pruneBackups(dir, policy, { dryRun = false } = {}) {
   const files = await listBackups(dir);
-  const cutoff = Date.now() - cfg.retentionDays * 24 * 60 * 60 * 1000;
-  let removed = 0;
-  for (const file of files.slice(cfg.keepMin)) {
-    if (file.mtimeMs >= cutoff) continue;
-    await fs.rm(path.join(dir, file.name), { force: true });
-    removed++;
+  const cutoff = Date.now() - policy.retentionDays * 24 * 60 * 60 * 1000;
+  const doomed = files.filter((file, i) => {
+    if (policy.maxKeep > 0 && i >= policy.maxKeep) return true;
+    return policy.retentionDays > 0 && i >= policy.keepMin && file.mtimeMs < cutoff;
+  });
+  if (!dryRun) {
+    for (const file of doomed) await fs.rm(path.join(dir, file.name), { force: true });
   }
-  return removed;
+  return doomed.length;
 }
 
 // Directory names of databases we already hold backups for (used when a server is unreachable).
