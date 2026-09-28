@@ -184,6 +184,7 @@ export async function createService(cfg) {
         name,
         state,
         lastBackupAt: latest ? new Date(latest.mtimeMs).toISOString() : null,
+        lastFile: latest ? latest.name : null,
         lastSizeBytes: latest ? latest.size : null,
         backupCount: files.length,
         totalBytes: files.reduce((sum, f) => sum + f.size, 0),

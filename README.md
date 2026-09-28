@@ -80,9 +80,22 @@ pg_restore -h HOST -p PORT -U USER -d restored_db --no-owner path/to/file.dump
 
 ## Privacy
 
-Dumps contain real customer data. They are git-ignored, are never logged, and the web page deliberately has
-**no download link** - copy files off the disk if you need one. The page has no login (LAN-only trust, like the other
-apps - see `LUXTRONIC-PRIVACY-DATA-GUIDELINES.md`): anyone on the LAN can see database names and press "Back up now".
+Dumps contain real customer data. They are git-ignored and their contents are never logged. The page has no login
+(LAN-only trust, like the other apps - see `LUXTRONIC-PRIVACY-DATA-GUIDELINES.md`), and it can **download backups**, so
+anyone on the LAN can download the full customer data of every database. Every download is logged with the requester's
+IP in `logs/out.log` (`[download] ...`). Add authentication before this service is ever reachable from outside the LAN.
+
+## Downloading backups
+
+From the status page:
+
+- **Latest**: the newest backup of one database.
+- **History**: every kept backup of that database, each downloadable, plus **Download all (zip)**.
+- **Download latest (zip)** on a server's panel: the newest backup of each database on that server.
+- **Download all latest** in the nav bar: the newest backup of every database, as one zip.
+
+The same is available directly: `GET /api/download/<target>/<database>/<file>`,
+`GET /api/download-zip[?target=<target>[&database=<database>]]`, and `GET /api/backups/<target>/<database>` to list files.
 
 ## Notes
 

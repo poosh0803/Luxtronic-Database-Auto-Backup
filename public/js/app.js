@@ -107,9 +107,53 @@ function renderAlerts(data) {
   el('alerts').innerHTML = alerts.join('');
 }
 
+// Expanded "History" rows: key "target/database" -> list of files (null while loading).
+const history = new Map();
+let lastData = null;
+
+const enc = encodeURIComponent;
+const fileUrl = (targetId, db, file) => `/api/download/${enc(targetId)}/${enc(db)}/${enc(file)}`;
+const zipUrl = (params) => `/api/download-zip?${new URLSearchParams(params)}`;
+
+function historyRow(target, db) {
+  const files = history.get(`${target.id}/${db.name}`);
+  let body;
+  if (!files) body = '<div class="empty"><i class="fas fa-spinner spin"></i> Loading&hellip;</div>';
+  else if (!files.length) body = '<div class="empty">No backups kept for this database.</div>';
+  else {
+    body = `
+      <div class="history-head">
+        <span>${files.length} backup${files.length === 1 ? '' : 's'} kept</span>
+        <a class="btn" href="${zipUrl({ target: target.id, database: db.name })}"><i class="fas fa-file-zipper"></i> Download all (zip)</a>
+      </div>
+      <ul class="history-list">
+        ${files.map((f) => `
+          <li>
+            <span class="file-name">${escapeHtml(f.name)}</span>
+            <span class="sub">${escapeHtml(formatDate(f.createdAt))} &middot; ${escapeHtml(formatBytes(f.size))}</span>
+            <a class="btn" href="${fileUrl(target.id, db.name, f.name)}" download><i class="fas fa-download"></i> Download</a>
+          </li>`).join('')}
+      </ul>`;
+  }
+  return `<tr class="history-row"><td colspan="6"><div class="history-box">${body}</div></td></tr>`;
+}
+
+async function loadHistory(key) {
+  const [targetId, ...rest] = key.split('/');
+  try {
+    const res = await fetch(`/api/backups/${enc(targetId)}/${enc(rest.join('/'))}`);
+    const data = await res.json();
+    if (history.has(key)) history.set(key, res.ok ? data.files : []);
+  } catch {
+    if (history.has(key)) history.set(key, []);
+  }
+}
+
 function databaseRow(target, db) {
+  const latestFile = db.lastFile;
   const busy = db.state === 'running' || db.state === 'queued';
-  const icon = db.state === 'running' ? '<i class="fas fa-spinner spin"></i>' : '<i class="fas fa-download"></i>';
+  const icon = db.state === 'running' ? '<i class="fas fa-spinner spin"></i>' : '<i class="fas fa-rotate"></i>';
+  const open = history.has(`${target.id}/${db.name}`);
   const last = db.lastBackupAt
     ? `${escapeHtml(formatDate(db.lastBackupAt))}<div class="sub">${escapeHtml(timeAgo(db.lastBackupAt))}${db.durationMs ? ` &middot; took ${escapeHtml(formatDuration(db.durationMs))}` : ''}</div>`
     : '-';
@@ -120,12 +164,18 @@ function databaseRow(target, db) {
       <td>${last}</td>
       <td class="num">${escapeHtml(formatBytes(db.lastSizeBytes))}</td>
       <td class="num">${db.backupCount}<div class="sub">${escapeHtml(formatBytes(db.totalBytes))} total</div></td>
-      <td class="num">
+      <td class="num actions">
+        ${latestFile
+          ? `<a class="btn" href="${fileUrl(target.id, db.name, latestFile)}" download title="Download the newest backup"><i class="fas fa-download"></i> Latest</a>`
+          : '<button class="btn" disabled title="No backup yet"><i class="fas fa-download"></i> Latest</button>'}
+        <button class="btn" data-history="${escapeHtml(`${target.id}/${db.name}`)}" ${db.backupCount ? '' : 'disabled'} title="All kept backups">
+          <i class="fas fa-clock-rotate-left"></i> ${open ? 'Hide' : 'History'}
+        </button>
         <button class="btn" data-target="${escapeHtml(target.id)}" data-database="${escapeHtml(db.name)}" ${busy || !target.reachable ? 'disabled' : ''}>
           ${icon} Back up
         </button>
       </td>
-    </tr>`;
+    </tr>${open ? historyRow(target, db) : ''}`;
 }
 
 function renderTargets(data) {
@@ -146,6 +196,9 @@ function renderTargets(data) {
           <span class="where">${escapeHtml(target.host)}:${escapeHtml(target.port)}</span>
           ${target.reachable ? '' : '<span class="badge down">Unreachable</span>'}
           <span class="spacer"></span>
+          ${target.databases.some((d) => d.backupCount)
+            ? `<a class="btn" href="${zipUrl({ target: target.id })}" title="Newest backup of each database on this server"><i class="fas fa-file-zipper"></i> Download latest (zip)</a>`
+            : ''}
           <button class="btn" data-target="${escapeHtml(target.id)}" ${target.reachable ? '' : 'disabled'}>
             <i class="fas fa-database"></i> Back up this server
           </button>
@@ -157,6 +210,7 @@ function renderTargets(data) {
 }
 
 function render(data) {
+  lastData = data;
   const busy = data.running ? `Backing up ${data.running.database}` + (data.queued ? ` (+${data.queued} queued)` : '') : 'Idle';
   el('pageSubtitle').textContent =
     `${busy} · saving to ${data.backupDir} · keeping ${data.retentionDays} days (min ${data.keepMin} per database)`;
@@ -172,7 +226,10 @@ async function load() {
   try {
     const res = await fetch('/api/status');
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    render(await res.json());
+    const data = await res.json();
+    // Keep open History lists current (new backups, pruned ones) across polls.
+    await Promise.all([...history.keys()].map(loadHistory));
+    render(data);
   } catch (err) {
     el('pageSubtitle').textContent = `Can't reach the backup service (${err.message}). Retrying...`;
   }
@@ -198,7 +255,20 @@ document.addEventListener('DOMContentLoaded', () => {
   initDarkMode();
 
   el('backupAllBtn').addEventListener('click', () => requestBackup({}, 'all databases'));
-  el('targets').addEventListener('click', (event) => {
+  el('targets').addEventListener('click', async (event) => {
+    const toggle = event.target.closest('button[data-history]');
+    if (toggle && !toggle.disabled) {
+      const key = toggle.dataset.history;
+      if (history.has(key)) {
+        history.delete(key);
+      } else {
+        history.set(key, null);
+        if (lastData) render(lastData);
+        await loadHistory(key);
+      }
+      if (lastData) render(lastData);
+      return;
+    }
     const btn = event.target.closest('button[data-target]');
     if (!btn || btn.disabled) return;
     const { target, database } = btn.dataset;

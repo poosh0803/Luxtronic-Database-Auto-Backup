@@ -8,6 +8,7 @@ dotenv.config();
 
 import { loadConfig } from './src/config.js';
 import { createService } from './src/service.js';
+import { downloadRoutes } from './src/downloads.js';
 
 const cfg = loadConfig();
 const service = await createService(cfg);
@@ -17,8 +18,8 @@ const app = express();
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Deliberately no endpoint serves the dump files themselves: they hold customer data
-// (see LUXTRONIC-PRIVACY-DATA-GUIDELINES.md). Copy them off the disk directly when needed.
+// Backup listing + file/zip downloads. Dumps hold customer data - see src/downloads.js.
+app.use('/api', downloadRoutes(cfg));
 
 app.get('/api/status', async (req, res) => {
   try {
