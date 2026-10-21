@@ -57,7 +57,7 @@ so a new database on an existing server needs **no** config change.
 1. Add its name to `DB_TARGETS`, e.g. `DB_TARGETS=quotation,...,warranty`
 2. Add its settings (name upper-cased, `-` becomes `_`):
    ```
-   DB_WARRANTY_PORT=5437
+   DB_WARRANTY_PORT=5438
    DB_WARRANTY_LABEL=Warranty Lookup
    # only if they differ from the DB_DEFAULT_* values:
    # DB_WARRANTY_HOST=...  DB_WARRANTY_USER=...  DB_WARRANTY_PASSWORD=...
