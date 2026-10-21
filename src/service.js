@@ -20,6 +20,7 @@ import {
   timestamp,
 } from './storage.js';
 import { applyChange, loadSettings, policyFor, saveSettings } from './settings.js';
+import { createNotifier } from './notify.js';
 
 const DISCOVERY_TTL_MS = 60 * 1000;
 const jobKey = (targetId, database) => `${targetId}/${database}`;
@@ -28,6 +29,7 @@ const log = (msg) => console.log(msg);
 export async function createService(cfg) {
   const status = await loadStatus(cfg);
   let settings = await loadSettings(cfg);
+  const notifyFailure = createNotifier(cfg, log);
   const queue = [];
   const discovery = new Map(); // target id -> { at, databases, error }
   const inflight = new Map(); // target id -> pending discovery promise
@@ -112,6 +114,11 @@ export async function createService(cfg) {
       record.lastError = err.message || String(err);
       if (!runner.mode) runner = { mode: null, error: record.lastError };
       log(`[backup] ${job.key} FAILED: ${record.lastError}`);
+      notifyFailure({
+        key: job.key,
+        title: `Backup failed: ${job.database}`,
+        message: `${target ? target.label : job.targetId} / ${job.database}: ${record.lastError}`,
+      });
     }
     record.durationMs = Date.now() - started;
     status.databases[job.key] = record;
@@ -131,6 +138,11 @@ export async function createService(cfg) {
       if (target.configError || info.error) {
         status.targets[target.id] = { lastAttemptAt: new Date().toISOString(), lastError: target.configError || info.error };
         log(`[backup] ${target.id} skipped: ${target.configError || info.error}`);
+        notifyFailure({
+          key: target.id,
+          title: `Backup skipped: ${target.label}`,
+          message: `${target.label} (${target.host}:${target.port}) could not be backed up: ${target.configError || info.error}`,
+        });
         continue;
       }
       delete status.targets[target.id];

@@ -46,6 +46,7 @@ If neither exists the status page shows a red banner and backups fail with a cle
 | `BACKUP_RETENTION_DAYS` | `14` | Default age limit: older backups are deleted (0 = never)... Editable on the page. |
 | `BACKUP_KEEP_MIN` | `3` | ...but the age limit never removes the newest N per database. |
 | `BACKUP_STALE_HOURS` | `36` | Newest backup older than this shows "Stale". |
+| `PORTAL_URL` / `STATUS_URL` | `http://192.168.68.255` / `http://192.168.68.255:7999` | Failed backups and unreachable servers are pushed to the portal's notification bell (`level: error`, source `db-backup`, "Open" links to `STATUS_URL`). Empty `PORTAL_URL` disables it. Best-effort: a down portal never affects backups. The same failure is sent at most once an hour. |
 | `DB_DEFAULT_HOST/USER/PASSWORD` | - | Shared by every target unless overridden. |
 | `DB_TARGETS` | - | Comma list of server names, one per Postgres instance (host:port). |
 

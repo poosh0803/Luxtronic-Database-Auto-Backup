@@ -76,6 +76,9 @@ export function loadConfig(env = process.env) {
     keepMin: toInt(env.BACKUP_KEEP_MIN, 3),
     staleHours: toInt(env.BACKUP_STALE_HOURS, 36),
     timeoutMs: toInt(env.BACKUP_TIMEOUT_MINUTES, 60) * 60 * 1000,
+    // Failure notifications go to the portal's bell. Empty PORTAL_URL turns them off.
+    portalUrl: (env.PORTAL_URL ?? 'http://192.168.68.255').replace(/\/+$/, ''),
+    statusUrl: env.STATUS_URL ?? 'http://192.168.68.255:7999',
     dumpMode,
     dumpPath: env.PG_DUMP_PATH || 'pg_dump',
     dockerImage: env.PG_DOCKER_IMAGE || 'postgres:17',
